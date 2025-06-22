@@ -10,7 +10,7 @@ class LoginRequiredPermission(BasePermission):
     def has_permission(self, request, view):
         token = request.COOKIES.get("access_token")
         if not token:
-            raise AuthenticationFailed(detail="{message: Login first}", code=401)
+            raise AuthenticationFailed(detail="{ Login first }", code=401)
 
         # Manually authenticate the user
         auth = JWTAuthentication()
@@ -18,7 +18,7 @@ class LoginRequiredPermission(BasePermission):
             validated_token = auth.get_validated_token(token)
             request.user = auth.get_user(validated_token)  # Set the authenticated user
         except Exception:
-            raise AuthenticationFailed(detail="{message: Invalid token}", code=401)
+            raise AuthenticationFailed(detail="{ Invalid token }", code=401)
 
         return True
 

@@ -1,54 +1,62 @@
 from django.urls import reverse
+from django.http import JsonResponse
+from django.contrib.auth import authenticate, get_user_model
+from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate, get_user_model
 from pemissions.permission import LoginRequiredPermission
 from .models import PasswordResetToken
-from .serializers import UserCreateSerializer, UserSerializer, UserUpdateSerializer
-from django.core.mail import send_mail
-from .models import PasswordResetToken
-from django.urls import reverse
+from .serializers import UserCreateSerializer, UserSerializer
 
+
+User = get_user_model()
 
 class LoginView(TokenObtainPairView):
     """
-    View for user login to obtain access and refresh tokens.
+    Custom login view that supports authentication via email or username.
     """
-    
+
     def post(self, request, *args, **kwargs):
-        email = request.data.get("email")
+        identifier = request.data.get("username")  # could be username or email
         password = request.data.get("password")
 
-        # Authenticate user
-        user = authenticate(email=email, password=password)
-        user_serializer = UserSerializer(user)
+        if not identifier or not password:
+            return Response({"message": "Username / Email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if user is not None:
-            # Generate access and refresh tokens
-            refresh = RefreshToken.for_user(user)
-            access_token = refresh.access_token
+        try:
+            # If identifier looks like an email
+            if "@" in identifier:
+                user = User.objects.get(email__iexact=identifier)
+            else:
+                user = User.objects.get(username__iexact=identifier)
 
-            response = Response({
-                'message': 'Login successful',
-                'data': user_serializer.data,
-                'access': str(access_token),
-                'refresh': str(refresh),
-            }, status=status.HTTP_200_OK)
+            # Now authenticate using email (your USERNAME_FIELD)
+            user = authenticate(email=user.email, password=password)
 
-            # Set access token in cookies
-            response.set_cookie(
+            if user is not None:
+                refresh = RefreshToken.for_user(user)
+                user_serializer = UserSerializer(user)
+                response =Response({
+                    'message': 'Login successful',
+                    'data': user_serializer.data,
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                }, status=status.HTTP_200_OK)
+
+                response.set_cookie(
                 key="access_token",
-                value=str(access_token),
+                value=str(refresh.access_token),
                 httponly=True,
                 secure=True,  # Must be True in production
                 samesite="None"  # Only use "None" when `secure=True`
             )
+                return response
 
-            return response
+        except User.DoesNotExist:
+            return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -64,64 +72,6 @@ class CreateUserView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-User = get_user_model()
-
-
-class GetUserDataView(APIView):
-    """
-    View to retrieve the logged-in user's data.
-    """
-    permission_classes = [LoginRequiredPermission]
-
-    def get(self, request, *args, **kwargs):
-        token = request.COOKIES.get('access_token')
-
-        auth = JWTAuthentication()
-        validated_token = auth.get_validated_token(token)
-        user = auth.get_user(validated_token)
-
-        if not user:
-            return Response({"message": "Invalid token"}, status=401)
-
-        try:
-            user_data = UserSerializer(user)
-            return Response({
-                'data': user_data.data,
-                "message": "User data retrieved successfully"
-            }, status=200)
-        except User.DoesNotExist:
-            return Response({"message": "User not found"}, status=404)
-
-
-class UpdateUserView(APIView):
-    """
-    View to update user details.
-    """
-    permission_classes = [LoginRequiredPermission]
-
-    def put(self, request, *args, **kwargs):
-        token = request.COOKIES.get('access_token')
-
-        if not token:
-            return Response({"message": "Access token missing"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        auth = JWTAuthentication()
-        try:
-            validated_token = auth.get_validated_token(token)
-            user = auth.get_user(validated_token)
-        except Exception:
-            return Response({"message": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Allow partial updates
-        serializer = UserUpdateSerializer(user, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "User updated successfully", "data": serializer.data}, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 class ForgetPassword(APIView):
     """
     View to send a password reset email to the user.
@@ -176,3 +126,10 @@ class UserLogoutView(APIView):
         response.delete_cookie("refresh_token")
 
         return response
+
+def custom_server_error(request):
+    return JsonResponse(
+        {"message": "This is chari's fault. Talk to chari."},
+        status=500
+    )
+

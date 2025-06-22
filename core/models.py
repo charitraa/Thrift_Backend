@@ -9,12 +9,13 @@ from django.contrib.auth.models import Group, Permission
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
-            raise ValueError("The Email field must be set")
+            raise ValueError('Email is required')
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
+
 
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
@@ -33,14 +34,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=255)
-    username = models.CharField(max_length=255, default='')
+    username = models.CharField(max_length=255, unique=True)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=15, default='')
-    address = models.TextField()
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    address = models.TextField(max_length=255, blank=True, null=True)
     profile_pic = models.ImageField(
         upload_to=user_profile_pic_path,  # Path where images will be stored
-        default='',  # Default profile picture
         blank=True, 
         null=True
     )
