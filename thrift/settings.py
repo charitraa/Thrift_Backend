@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-+5n$2$ode#brj0(y9qc1deiuui-8(8p14$^puo$z%!5uil12&3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1","charitra.pythonanywhere.com",]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1","charitraa.pythonanywhere.com",]
 
 
 # Application definition
@@ -129,7 +129,8 @@ CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173/",
-    "https://charitra.pythonanywhere.com",
+    "https://charitraa.pythonanywhere.com",
+    
 ]
 
 
